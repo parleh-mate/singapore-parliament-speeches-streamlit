@@ -3,7 +3,7 @@ from utils import project_id, run_query
 import pandas as pd
 from datetime import datetime
 
-## BACKEND
+# BACKEND
 
 def get_member_list():
     query = f"""
@@ -19,19 +19,13 @@ def get_member_list():
     from `{project_id}.prod_dim.dim_members`
     where member_name != '' and member_name is not null
     """
-    return run_query(query)
-
-members = get_member_list()
-member_names = [member['member_name'] for member in members]
-members_df = pd.DataFrame(members)
+    return pd.DataFrame(run_query(query))
 
 def get_member_positions():
     query = f"""
     select * from `{project_id}.prod_fact.fact_member_positions`
     """
     return pd.DataFrame(run_query(query))
-
-member_positions_df = get_member_positions()
 
 def get_member_speeches(member_name):
     query = f"""
@@ -51,13 +45,17 @@ def get_member_speeches(member_name):
 
     return pd.DataFrame(run_query(query))
 
+members_df = get_member_list()
+member_names = sorted(members_df['member_name'].unique())
+member_positions_df = get_member_positions()
+
 EARLIEST_SITTING = '2012-09-10'
 
-## FRONTEND
+# FRONTEND
 
 select_member = st.sidebar.selectbox(
     label="Which member are you interested in?",
-    options=sorted(member_names),
+    options=member_names,
     index=None,
     placeholder="Choose member name"
 )
@@ -66,12 +64,11 @@ st.title('Performance by Members')
 st.warning('Under construction.')
 if select_member:
     member_info, member_picture = st.columns([3, 1])
-    member_df = members_df.loc[members_df['member_name'] == select_member,:]
+    member_df = members_df[members_df['member_name'] == select_member]
 
     with member_info:
         st.header(select_member)
 
-        # birth year
         member_birth_year = member_df['member_birth_year'].iloc[0]
         if member_birth_year:
             member_birth_year_int = int(member_birth_year)
@@ -85,7 +82,6 @@ if select_member:
                         * Birth Year: _unknown_
                         """)
 
-        # sittings
         condition_earliest_sitting_in_dataset = str(member_df['earliest_sitting'].iloc[0]) > EARLIEST_SITTING
 
         if condition_earliest_sitting_in_dataset:
@@ -117,7 +113,6 @@ if select_member:
     st.divider()
     st.subheader("Speeches")
 
-
     speech_summary = get_member_speeches(select_member)
 
     if not condition_earliest_sitting_in_dataset:
@@ -126,30 +121,29 @@ if select_member:
     # is political appointee
     if not member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
                                  (member_positions_df['type'] == 'appointment')].empty:
-        # but not a mayor
+        # and is not mayor
         if member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
-                                       member_positions_df['member_position'].str.contains('mayor', case=False)].empty:
+                                   member_positions_df['member_position'].str.contains('mayor', case=False)].empty:
             st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
 
-    metric0, metric1, metric2, metric3, metric4= st.columns(5, gap="small")
-
-    with metric0:
-        st.metric(label='Sittings Attended',
-                  value=count_sittings_present)
+    metric1, metric2, metric3, metric4, metric5 = st.columns(5)
     with metric1:
-        st.metric(label='Topics',
-                  value=f"{speech_summary['count_topics'].sum():,}")
+        st.metric(label='Sittings Attended',
+                value=count_sittings_present)
     with metric2:
-        st.metric(label='Speeches Made',
-                  value=f"{speech_summary['count_speeches'].sum():,}")
+        st.metric(label='Topics',
+                value=f"{speech_summary['count_topics'].sum():,}")
     with metric3:
-        st.metric(label='Qns Asked',
-                  value=f"{speech_summary['count_pri_questions'].sum():,}")
+        st.metric(label='Speeches Made',
+                value=f"{speech_summary['count_speeches'].sum():,}")
     with metric4:
+        st.metric(label='Qns Asked',
+                value=f"{speech_summary['count_pri_questions'].sum():,}")
+    with metric5:
         st.metric(label='Words Spoken',
-                  value=f"{speech_summary['count_words'].sum():,}")
+                value=f"{speech_summary['count_words'].sum():,}")
 
-    col1, col2 = st.columns(2, gap="medium")
+    col1, col2 = st.columns(2, gap='medium')
     with col1:
         st.bar_chart(data=speech_summary,
                x='year',
@@ -175,23 +169,15 @@ if select_member:
 
     st.divider()
     st.subheader("Positions")
-    positions_df = member_positions_df.loc[member_positions_df['member_name']==select_member]
+    positions_df = member_positions_df[member_positions_df['member_name'] == select_member]
     columns_to_display = ['member_position', 'effective_from_date', 'effective_to_date', 'is_latest_position']
 
-    constituencies_df = positions_df.loc[positions_df['type'] == 'constituency', columns_to_display]
+    constituencies_df = positions_df[positions_df['type'] == 'constituency'][columns_to_display]
     if not constituencies_df.empty:
         st.write("Constituencies")
-        st.dataframe(constituencies_df, use_container_width = True, hide_index=True)
+        st.dataframe(constituencies_df, use_container_width=True, hide_index=True)
 
-    appointments_df = positions_df.loc[positions_df['type'] == 'appointment', columns_to_display]
+    appointments_df = positions_df[positions_df['type'] == 'appointment'][columns_to_display]
     if not appointments_df.empty:
         st.write("Political Appointments")
-        st.dataframe(appointments_df, use_container_width = True, hide_index=True)
-
-    committees_df = positions_df.loc[positions_df['type'] == 'select_committee', columns_to_display]
-    if not committees_df.empty:
-        st.write("Select Committees")
-        st.dataframe(committees_df, use_container_width = True, hide_index = True)
-
-else:
-    st.error("Select member on the sidebar.")
+        st.dataframe(appointments_df, use_container_width=True, hide_index=True)
