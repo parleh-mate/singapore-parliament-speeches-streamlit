@@ -68,6 +68,10 @@ select_member = st.sidebar.selectbox(
 
 st.title('Performance by Members')
 st.warning('Under construction.')
+
+if not select_member:
+    st.error("Please select a member on the sidebar.")
+
 if select_member:
     member_info, member_picture = st.columns([3, 1])
     member_df = members_df[members_df['member_name'] == select_member]
