@@ -3,6 +3,12 @@ from utils import project_id, run_query
 import pandas as pd
 from datetime import datetime
 
+st.set_page_config(
+   page_title="Performance by Members",
+   page_icon="💬",
+   initial_sidebar_state="expanded",
+)
+
 # BACKEND
 
 def get_member_list():

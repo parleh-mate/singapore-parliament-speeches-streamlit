@@ -1,8 +1,13 @@
-# streamlit_app.py
 
 import streamlit as st
 from utils import project_id, run_query
 from millify import millify
+
+st.set_page_config(
+   page_title="Singapore Parliament Speeches",
+   page_icon="💬",
+   initial_sidebar_state="expanded",
+)
 
 ### BACKEND
 
