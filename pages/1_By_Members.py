@@ -3,6 +3,7 @@ from utils import project_id, run_query
 import pandas as pd
 from datetime import datetime
 from scipy.stats import percentileofscore
+from millify import millify
 import numpy as np
 
 st.set_page_config(
@@ -115,6 +116,8 @@ column_names = [
     "count_words",
     "count_pri_questions",
 ]
+
+## average by member:
 agg_by_member_dict = {col: "sum" for col in column_names}
 
 aggregated_by_member = (
@@ -141,6 +144,15 @@ aggregated_by_member["words_per_sitting"] = (
 aggregated_by_member = aggregated_by_member[
     aggregated_by_member["count_sittings_attended"] != 0
 ]
+
+## average by year:
+agg_by_year_dict = {col: average_non_zero for col in column_names}
+
+aggregated_by_year = (
+    all_members_speech_summary.groupby("year").agg(agg_by_year_dict).reset_index()
+)
+aggregated_by_year.columns = ["year"] + [f'avg_{column_name}' for column_name in column_names]
+aggregated_by_year['year'] = aggregated_by_year['year'].astype(str).str.replace('[,.]', '', regex=True)
 
 EARLIEST_SITTING = "2012-09-10"
 
@@ -221,6 +233,7 @@ if select_member:
 
     speech_summary = get_member_speeches(select_member)
     speech_summary['year'] = speech_summary['year'].astype(str).str.replace('[,.]', '', regex=True)
+    speech_summary = speech_summary.merge(aggregated_by_year, how='left', on='year')
 
     if not condition_earliest_sitting_in_dataset:
         st.warning(
@@ -301,25 +314,25 @@ if select_member:
             )
     with metric5:
         st.metric(
-            label="Words Spoken", value=f"{speech_summary['count_words'].sum():,.0f}"
+            label="Words Spoken", value=f"{millify(speech_summary['count_words'].sum(), precision=1)}"
         )
         member_words_per_sitting = speech_summary['count_words'].sum()/speech_summary['count_sittings_spoken'].sum()
         st.metric(
             label="Words/Sitting",
-            value=f"{member_words_per_sitting:,.1f}",
+            value=f"{millify(member_words_per_sitting, precision=1)}",
         )
         st.caption(f"Percentile: {percentileofscore(aggregated_by_member['words_per_sitting'], member_words_per_sitting):.1f}")
-        st.caption(f"Average: {aggregated_by_member['words_per_sitting'].mean():,.2f}")
+        st.caption(f"Average: {millify(aggregated_by_member['words_per_sitting'].mean(), precision=1)}")
 
     st.divider()
     st.write("Over the years:")
     col1, col2 = st.columns(2, gap="medium")
     with col1:
-        st.line_chart(data=speech_summary, x="year", y="count_topics", height=200)
-        st.line_chart(data=speech_summary, x="year", y="count_pri_questions", height=200)
+        st.line_chart(data=speech_summary, x="year", y=["count_topics", "avg_count_topics"], height=200)
+        st.line_chart(data=speech_summary, x="year", y=["count_pri_questions", "avg_count_pri_questions"], height=200)
     with col2:
-        st.line_chart(data=speech_summary, x="year", y="count_speeches", height=200)
-        st.line_chart(data=speech_summary, x="year", y="count_words", height=200)
+        st.line_chart(data=speech_summary, x="year", y=["count_speeches", "avg_count_speeches"], height=200)
+        st.line_chart(data=speech_summary, x="year", y=["count_words", "avg_count_words"], height=200)
     st.line_chart(data=speech_summary, x="year", y="readability", height=200)
 
     st.divider()
