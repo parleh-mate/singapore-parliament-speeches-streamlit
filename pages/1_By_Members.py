@@ -37,6 +37,7 @@ def get_member_speeches(member_name):
     query = f"""
     select
         extract(year from date) as year,
+        count(distinct date) as count_sittings_spoken,
         count(distinct topic_id) as count_topics,
         count(*) as count_speeches,
         sum(count_speeches_words) as count_words,
@@ -135,24 +136,36 @@ if select_member:
         if member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
                                    member_positions_df['member_position'].str.contains('mayor', case=False)].empty:
             st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
-
+    
     metric1, metric2, metric3, metric4, metric5 = st.columns(5)
     with metric1:
         st.metric(label='Sittings Attended',
-                value=count_sittings_present)
+                  value=count_sittings_present)
+        st.metric(label='Sittings Spoken',
+                  value=f"{speech_summary['count_sittings_spoken'].sum():,}")
     with metric2:
         st.metric(label='Topics',
-                value=f"{speech_summary['count_topics'].sum():,}")
+                  value=f"{speech_summary['count_topics'].sum():,}")
+        st.metric(label='Participation Rate (%)',
+                  value=f"{speech_summary['count_sittings_spoken'].sum()/count_sittings_present*100:.1f}%")
     with metric3:
         st.metric(label='Speeches Made',
-                value=f"{speech_summary['count_speeches'].sum():,}")
+                  value=f"{speech_summary['count_speeches'].sum():,}")
+        st.metric(label='Topics/Sitting',
+                  value=f"{speech_summary['count_topics'].sum()/speech_summary['count_sittings_spoken'].sum():,.2f}")
     with metric4:
         st.metric(label='Qns Asked',
-                value=f"{speech_summary['count_pri_questions'].sum():,}")
+                  value=f"{speech_summary['count_pri_questions'].sum():,}")
+        st.metric(label='Qns/Sitting',
+                  value=f"{speech_summary['count_pri_questions'].sum()/speech_summary['count_sittings_spoken'].sum():,.2f}")
     with metric5:
         st.metric(label='Words Spoken',
-                value=f"{speech_summary['count_words'].sum():,}")
-
+                  value=f"{speech_summary['count_words'].sum():,}")
+        st.metric(label='Words/Sitting',
+                  value=f"{speech_summary['count_words'].sum()/speech_summary['count_sittings_spoken'].sum():,.1f}")
+    
+    st.divider()
+    st.write('Over the years:')
     col1, col2 = st.columns(2, gap='medium')
     with col1:
         st.bar_chart(data=speech_summary,
