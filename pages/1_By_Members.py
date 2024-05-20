@@ -123,8 +123,13 @@ if select_member:
     if not condition_earliest_sitting_in_dataset:
         st.warning(f"As this member was elected before the earliest sitting ({EARLIEST_SITTING}), the information below reflects information from sittings on {EARLIEST_SITTING} and after.")
 
-    if not member_positions_df.loc[(member_positions_df['member_name']==select_member) & (member_positions_df['type'] == 'appointment')].empty:
-        st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
+    # is political appointee
+    if not member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
+                                 (member_positions_df['type'] == 'appointment')].empty:
+        # but not a mayor
+        if member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
+                                       member_positions_df['member_position'].str.contains('mayor', case=False)].empty:
+            st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
 
     metric0, metric1, metric2, metric3, metric4= st.columns(5, gap="small")
 
