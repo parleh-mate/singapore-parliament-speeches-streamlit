@@ -2,6 +2,8 @@ import streamlit as st
 from utils import project_id, run_query
 import pandas as pd
 from datetime import datetime
+from scipy.stats import percentileofscore
+import numpy as np
 
 st.set_page_config(
     page_title="Performance by Members",
@@ -11,6 +13,12 @@ st.set_page_config(
 
 # BACKEND
 
+def average_non_zero(x):
+    non_zero_values = x[x != 0]  # Select non-zero values
+    if len(non_zero_values) > 0:
+        return np.mean(non_zero_values)  # Calculate the mean of non-zero values
+    else:
+        return 0  # Return 0 if there are no non-zero values
 
 def get_member_list():
     query = f"""
@@ -107,10 +115,10 @@ column_names = [
     "count_words",
     "count_pri_questions",
 ]
-agg_dict = {col: "sum" for col in column_names}
+agg_by_member_dict = {col: "sum" for col in column_names}
 
 aggregated_by_member = (
-    all_members_speech_summary.groupby("member_name").agg(agg_dict).reset_index()
+    all_members_speech_summary.groupby("member_name").agg(agg_by_member_dict).reset_index()
 )
 aggregated_by_member.columns = ["member_name"] + column_names
 
@@ -212,6 +220,7 @@ if select_member:
     st.subheader("Speeches")
 
     speech_summary = get_member_speeches(select_member)
+    speech_summary['year'] = speech_summary['year'].astype(str).str.replace('[,.]', '', regex=True)
 
     if not condition_earliest_sitting_in_dataset:
         st.warning(
@@ -247,62 +256,70 @@ if select_member:
     with metric1:
         st.metric(
             label="Sittings Attended",
-            value=f"{speech_summary['count_sittings_attended'].sum():,}",
+            value=f"{speech_summary['count_sittings_attended'].sum():,.0f}",
         )
         st.metric(
             label="Sittings Spoken",
-            value=f"{speech_summary['count_sittings_spoken'].sum():,}",
+            value=f"{speech_summary['count_sittings_spoken'].sum():,.0f}",
         )
     with metric2:
-        st.metric(label="Topics", value=f"{speech_summary['count_topics'].sum():,}")
+        st.metric(label="Topics", value=f"{speech_summary['count_topics'].sum():,.0f}")
+        member_participation_rate = speech_summary['count_sittings_spoken'].sum()/speech_summary['count_sittings_attended'].sum()*100
         st.metric(
             label="Participation (%)",
-            value=f"{speech_summary['count_sittings_spoken'].sum()/speech_summary['count_sittings_attended'].sum()*100:.1f}%",
+            value=f"{member_participation_rate:.1f}%",
             help="Sittings Spoken in divided by Sittings Attended",
         )
-        st.caption(f"Avg: {aggregated_by_member['participation_rate'].mean():.1f}%")
+        st.caption(f"Percentile: {percentileofscore(aggregated_by_member['participation_rate'], member_participation_rate):.1f}")
+        st.caption(f"Average: {aggregated_by_member['participation_rate'].mean():.1f}%")
     with metric3:
         st.metric(
-            label="Speeches Made", value=f"{speech_summary['count_speeches'].sum():,}"
+            label="Speeches Made", value=f"{speech_summary['count_speeches'].sum():,.0f}"
         )
+        member_topics_per_sitting = speech_summary['count_topics'].sum()/speech_summary['count_sittings_spoken'].sum()
         st.metric(
             label="Topics/Sitting",
-            value=f"{speech_summary['count_topics'].sum()/speech_summary['count_sittings_spoken'].sum():,.2f}",
+            value=f"{member_topics_per_sitting:,.2f}",
         )
-        st.caption(f"Avg: {aggregated_by_member['topics_per_sitting'].mean():,.2f}")
+        st.caption(f"Percentile: {percentileofscore(aggregated_by_member['topics_per_sitting'], member_topics_per_sitting):.1f}")
+        st.caption(f"Average: {aggregated_by_member['topics_per_sitting'].mean():,.2f}")
     with metric4:
         st.metric(
-            label="Qns Asked", value=f"{speech_summary['count_pri_questions'].sum():,}"
+            label="Qns Asked", value=f"{speech_summary['count_pri_questions'].sum():,.0f}"
         )
+        member_questions_per_sitting = speech_summary['count_pri_questions'].sum()/speech_summary['count_sittings_spoken'].sum()
         st.metric(
             label="Qns/Sitting",
-            value=f"{speech_summary['count_pri_questions'].sum()/speech_summary['count_sittings_spoken'].sum():,.2f}",
+            value=f"{member_questions_per_sitting:,.2f}",
         )
         if not_eligible_to_ask_questions:
             st.caption("N/A")
         else:
+            st.caption(f"Percentile: {percentileofscore(aggregated_by_member['questions_per_sitting'], member_questions_per_sitting):.1f}")
             st.caption(
-                f"Avg: {aggregated_by_member[aggregated_by_member['questions_per_sitting'] != 0]['questions_per_sitting'].mean():,.2f}"
+                f"Average: {aggregated_by_member[aggregated_by_member['questions_per_sitting'] != 0]['questions_per_sitting'].mean():,.2f}"
             )
     with metric5:
         st.metric(
-            label="Words Spoken", value=f"{speech_summary['count_words'].sum():,}"
+            label="Words Spoken", value=f"{speech_summary['count_words'].sum():,.0f}"
         )
+        member_words_per_sitting = speech_summary['count_words'].sum()/speech_summary['count_sittings_spoken'].sum()
         st.metric(
             label="Words/Sitting",
-            value=f"{speech_summary['count_words'].sum()/speech_summary['count_sittings_spoken'].sum():,.1f}",
+            value=f"{member_words_per_sitting:,.1f}",
         )
-        st.caption(f"Avg: {aggregated_by_member['words_per_sitting'].mean():,.2f}")
+        st.caption(f"Percentile: {percentileofscore(aggregated_by_member['words_per_sitting'], member_words_per_sitting):.1f}")
+        st.caption(f"Average: {aggregated_by_member['words_per_sitting'].mean():,.2f}")
 
     st.divider()
     st.write("Over the years:")
     col1, col2 = st.columns(2, gap="medium")
     with col1:
-        st.bar_chart(data=speech_summary, x="year", y="count_topics", height=200)
-        st.bar_chart(data=speech_summary, x="year", y="count_pri_questions", height=200)
+        st.line_chart(data=speech_summary, x="year", y="count_topics", height=200)
+        st.line_chart(data=speech_summary, x="year", y="count_pri_questions", height=200)
     with col2:
-        st.bar_chart(data=speech_summary, x="year", y="count_speeches", height=200)
-        st.bar_chart(data=speech_summary, x="year", y="count_words", height=200)
+        st.line_chart(data=speech_summary, x="year", y="count_speeches", height=200)
+        st.line_chart(data=speech_summary, x="year", y="count_words", height=200)
     st.line_chart(data=speech_summary, x="year", y="readability", height=200)
 
     st.divider()
