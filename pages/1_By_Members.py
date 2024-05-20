@@ -117,23 +117,29 @@ if select_member:
     st.divider()
     st.subheader("Speeches")
 
+
     speech_summary = get_member_speeches(select_member)
+
+    if not condition_earliest_sitting_in_dataset:
+        st.warning(f"As this member was elected before the earliest sitting ({EARLIEST_SITTING}), the information below reflects information from sittings on {EARLIEST_SITTING} and after.")
+
+    if not member_positions_df.loc[(member_positions_df['member_name']==select_member) & (member_positions_df['type'] == 'appointment')].empty:
+        st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
 
     metric0, metric1, metric2, metric3, metric4= st.columns(5, gap="small")
 
     with metric0:
         st.metric(label='Sittings Attended',
                   value=count_sittings_present)
-
     with metric1:
         st.metric(label='Topics',
-                  value=speech_summary['count_topics'].sum())
+                  value=f"{speech_summary['count_topics'].sum():,}")
     with metric2:
         st.metric(label='Speeches Made',
-                  value=speech_summary['count_speeches'].sum())
+                  value=f"{speech_summary['count_speeches'].sum():,}")
     with metric3:
         st.metric(label='Qns Asked',
-                  value=speech_summary['count_pri_questions'].sum())
+                  value=f"{speech_summary['count_pri_questions'].sum():,}")
     with metric4:
         st.metric(label='Words Spoken',
                   value=f"{speech_summary['count_words'].sum():,}")
