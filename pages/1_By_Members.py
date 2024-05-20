@@ -33,28 +33,84 @@ def get_member_positions():
     """
     return pd.DataFrame(run_query(query))
 
-def get_member_speeches(member_name):
+def get_all_member_speeches():
     query = f"""
+    with
+        speeches_summary as (
+            select
+                member_name,
+                extract(year from date) as year,
+                count(distinct date) as count_sittings_spoken,
+                count(distinct topic_id) as count_topics,
+                count(*) as count_speeches,
+                sum(count_speeches_words) as count_words,
+                countif(is_primary_question) as count_pri_questions,
+                206.835
+                - (1.015 * sum(count_speeches_words) / sum(count_speeches_sentences))
+                - (
+                    84.6 * sum(count_speeches_syllables) / sum(count_speeches_words)
+                ) as readability
+            from `{project_id}.prod_mart.mart_speeches`
+            where
+                member_name != ''
+                and not lower(member_name) like any ('%deputy%', '%speaker%', '%chairman%')
+            group by all
+        ),
+
+        attendance_summary as (
+            select
+                member_name,
+                extract(year from date) as year,
+                countif(is_present) as count_sittings_attended
+            from `{project_id}.prod_fact.fact_attendance`
+            group by all
+        )
+
     select
-        extract(year from date) as year,
-        count(distinct date) as count_sittings_spoken,
-        count(distinct topic_id) as count_topics,
-        count(*) as count_speeches,
-        sum(count_speeches_words) as count_words,
-        countif(is_primary_question) as count_pri_questions,
-        206.835
-        - (1.015 * sum(count_speeches_words) / sum(count_speeches_sentences))
-        - (84.6 * sum(count_speeches_syllables) / sum(count_speeches_words)) as readability
-    from `{project_id}.prod_mart.mart_speeches`
-    where member_name = '{member_name}'
-    group by all
+        s.member_name,
+        s.year,
+        a.count_sittings_attended,
+        s.count_sittings_spoken,
+        s.count_topics,
+        s.count_speeches,
+        s.count_words,
+        s.count_pri_questions,
+        s.readability
+    from speeches_summary as s
+    left join attendance_summary as a on s.member_name = a.member_name and s.year = a.year
     """
 
     return pd.DataFrame(run_query(query))
 
+def get_member_speeches(member_name):
+    all_members_speeches_summary = get_all_member_speeches()
+    return all_members_speeches_summary[all_members_speeches_summary['member_name'] == member_name]
+
 members_df = get_member_list()
 member_names = sorted(members_df['member_name'].unique())
 member_positions_df = get_member_positions()
+
+## average metrics:
+all_members_speech_summary = get_all_member_speeches()
+column_names = [
+    'count_sittings_attended',
+    'count_sittings_spoken',
+    'count_topics',
+    'count_speeches',
+    'count_words',
+    'count_pri_questions'
+]
+agg_dict = {col: 'sum' for col in column_names}
+
+aggregated_by_member = all_members_speech_summary.groupby('member_name').agg(agg_dict).reset_index()
+aggregated_by_member.columns = ['member_name'] + column_names
+
+aggregated_by_member['participation_rate'] = aggregated_by_member['count_sittings_spoken']/aggregated_by_member['count_sittings_attended']*100
+aggregated_by_member['topics_per_sitting'] = aggregated_by_member['count_topics']/aggregated_by_member['count_sittings_spoken']
+aggregated_by_member['questions_per_sitting'] = aggregated_by_member['count_pri_questions']/aggregated_by_member['count_sittings_spoken']
+aggregated_by_member['words_per_sitting'] = aggregated_by_member['count_words']/aggregated_by_member['count_sittings_spoken']
+
+aggregated_by_member = aggregated_by_member[aggregated_by_member['count_sittings_attended'] != 0]
 
 EARLIEST_SITTING = '2012-09-10'
 
@@ -129,41 +185,53 @@ if select_member:
     if not condition_earliest_sitting_in_dataset:
         st.warning(f"As this member was elected before the earliest sitting ({EARLIEST_SITTING}), the information below reflects information from sittings on {EARLIEST_SITTING} and after.")
 
-    # is political appointee
-    if not member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
-                                 (member_positions_df['type'] == 'appointment')].empty:
-        # and is not mayor
-        if member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
-                                   member_positions_df['member_position'].str.contains('mayor', case=False)].empty:
-            st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
+    not_eligible_to_ask_questions = (
+        # is political appointee
+        (not member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
+            (member_positions_df['type'] == 'appointment')].empty)
+        and
+        # is not mayor
+        (member_positions_df.loc[(member_positions_df['member_name'] == select_member) &
+        member_positions_df['member_position'].str.contains('mayor', case=False)].empty))
+
+    if not_eligible_to_ask_questions:
+        st.success(f"As this member has a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug.")
     
     metric1, metric2, metric3, metric4, metric5 = st.columns(5)
     with metric1:
         st.metric(label='Sittings Attended',
-                  value=count_sittings_present)
+                  value=f"{speech_summary['count_sittings_attended'].sum():,}")
         st.metric(label='Sittings Spoken',
                   value=f"{speech_summary['count_sittings_spoken'].sum():,}")
     with metric2:
         st.metric(label='Topics',
                   value=f"{speech_summary['count_topics'].sum():,}")
-        st.metric(label='Participation Rate (%)',
-                  value=f"{speech_summary['count_sittings_spoken'].sum()/count_sittings_present*100:.1f}%")
+        st.metric(label='Participation (%)',
+                  value=f"{speech_summary['count_sittings_spoken'].sum()/speech_summary['count_sittings_attended'].sum()*100:.1f}%",
+                  help='Sittings Spoken in divided by Sittings Attended')
+        st.caption(f"Avg: {aggregated_by_member['participation_rate'].mean():.1f}%")
     with metric3:
         st.metric(label='Speeches Made',
                   value=f"{speech_summary['count_speeches'].sum():,}")
         st.metric(label='Topics/Sitting',
                   value=f"{speech_summary['count_topics'].sum()/speech_summary['count_sittings_spoken'].sum():,.2f}")
+        st.caption(f"Avg: {aggregated_by_member['topics_per_sitting'].mean():,.2f}")
     with metric4:
         st.metric(label='Qns Asked',
                   value=f"{speech_summary['count_pri_questions'].sum():,}")
         st.metric(label='Qns/Sitting',
                   value=f"{speech_summary['count_pri_questions'].sum()/speech_summary['count_sittings_spoken'].sum():,.2f}")
+        if not_eligible_to_ask_questions:
+            st.caption("N/A")
+        else:
+            st.caption(f"Avg: {aggregated_by_member[aggregated_by_member['questions_per_sitting'] != 0]['questions_per_sitting'].mean():,.2f}")
     with metric5:
         st.metric(label='Words Spoken',
                   value=f"{speech_summary['count_words'].sum():,}")
         st.metric(label='Words/Sitting',
                   value=f"{speech_summary['count_words'].sum()/speech_summary['count_sittings_spoken'].sum():,.1f}")
-    
+        st.caption(f"Avg: {aggregated_by_member['words_per_sitting'].mean():,.2f}")
+
     st.divider()
     st.write('Over the years:')
     col1, col2 = st.columns(2, gap='medium')
