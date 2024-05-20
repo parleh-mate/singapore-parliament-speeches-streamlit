@@ -9,7 +9,8 @@ credentials = service_account.Credentials.from_service_account_info(
     st.secrets["gcp_service_account"]
 )
 client = bigquery.Client(credentials=credentials)
-project_id = 'singapore-parliament-speeches'
+project_id = "singapore-parliament-speeches"
+
 
 @st.cache_data(ttl=6000)
 def run_query(query):
