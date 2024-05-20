@@ -1,0 +1,4 @@
+google-cloud-bigquery==3.23.0
+streamlit==1.34.0
+millify==0.1.1
+pandas==2.2.2
