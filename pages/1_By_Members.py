@@ -19,6 +19,16 @@ def average_non_zero(x):
     non_zero_values = x[x != 0]
     return np.mean(non_zero_values) if len(non_zero_values) > 0 else 0
 
+def calculate_readability(row):
+    total_words = row['count_words']
+    total_sentences = row['count_sentences']
+    total_syllables = row['count_syllables']
+
+    readability = (206.835
+                   - (1.015 * total_words / total_sentences)
+                   - (84.6 * total_syllables / total_words))
+    return readability
+
 
 @st.cache_data(ttl=600)
 def query_to_dataframe(query):
@@ -60,9 +70,8 @@ def get_all_member_speeches():
             count(*) as count_speeches,
             sum(count_speeches_words) as count_words,
             countif(is_primary_question) as count_pri_questions,
-            206.835
-            - (1.015 * sum(count_speeches_words) / sum(count_speeches_sentences))
-            - (84.6 * sum(count_speeches_syllables) / sum(count_speeches_words)) as readability
+            sum(count_speeches_sentences) as count_sentences,
+            sum(count_speeches_syllables) as count_syllables
         from `{project_id}.prod_mart.mart_speeches`
         where member_name != '' and not lower(member_name) like any ('%deputy%', '%speaker%', '%chairman%')
         group by all
@@ -84,7 +93,8 @@ def get_all_member_speeches():
         s.count_speeches,
         s.count_words,
         s.count_pri_questions,
-        s.readability
+        s.count_syllables,
+        s.count_sentences
     from speeches_summary as s
     left join attendance_summary as a on s.member_name = a.member_name and s.year = a.year
     """
@@ -111,8 +121,11 @@ def prepare_aggregated_data():
         "count_speeches",
         "count_words",
         "count_pri_questions",
+        "count_sentences",
+        "count_syllables"
     ]
 
+    # agg by member
     agg_by_member_dict = {col: "sum" for col in column_names}
     aggregated_by_member = (
         all_members_speech_summary.groupby("member_name")
@@ -139,10 +152,12 @@ def prepare_aggregated_data():
         / aggregated_by_member["count_sittings_spoken"]
     )
 
+    aggregated_by_member["readability"] = aggregated_by_member.apply(calculate_readability, axis=1)
+
     aggregated_by_member = aggregated_by_member[
         aggregated_by_member["count_sittings_attended"] != 0
     ]
-
+    # agg by year (average metrics)
     agg_by_year_dict = {col: average_non_zero for col in column_names}
     aggregated_by_year = (
         all_members_speech_summary.groupby("year").agg(agg_by_year_dict).reset_index()
@@ -151,6 +166,26 @@ def prepare_aggregated_data():
     aggregated_by_year["year"] = (
         aggregated_by_year["year"].astype(str).str.replace("[,.]", "", regex=True)
     )
+    # agg by year (overall readability)
+    readability_cols = [
+        'count_words',
+        'count_sentences',
+        'count_syllables'
+    ]
+    readability_dict = {col: sum for col in readability_cols}
+    aggregated_by_year_readability = (
+        all_members_speech_summary.groupby("year").agg(readability_dict).reset_index()
+    )
+    aggregated_by_year_readability.columns = ["year"] + readability_cols
+    aggregated_by_year_readability["overall_readability"] = aggregated_by_year_readability\
+        .apply(calculate_readability, axis=1)
+    aggregated_by_year_readability["year"] = (
+        aggregated_by_year_readability["year"].astype(str).str.replace("[,.]", "", regex=True)
+    )
+    aggregated_by_year = aggregated_by_year.merge(
+        aggregated_by_year_readability[["year", "overall_readability"]],
+        how='left',
+        on='year')
 
     return members_df, member_positions_df, aggregated_by_member, aggregated_by_year
 
@@ -235,6 +270,7 @@ if select_member:
     st.subheader("Speeches")
 
     speech_summary = get_member_speeches(select_member)
+    speech_summary["readability"] = speech_summary.apply(calculate_readability, axis=1)
     speech_summary["year"] = (
         speech_summary["year"].astype(str).str.replace("[,.]", "", regex=True)
     )
@@ -377,7 +413,7 @@ if select_member:
             y=["count_words", "avg_count_words"],
             height=200,
         )
-    st.line_chart(data=speech_summary, x="year", y="readability", height=200)
+    st.line_chart(data=speech_summary, x="year", y=["readability", "overall_readability"], height=200)
 
     st.divider()
     st.subheader("Positions")
