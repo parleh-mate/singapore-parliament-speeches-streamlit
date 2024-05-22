@@ -1,4 +1,5 @@
 import streamlit as st
+import altair as alt
 from utils import project_id, run_query
 import pandas as pd
 from datetime import datetime
@@ -100,6 +101,35 @@ def get_all_member_speeches():
     """
     return query_to_dataframe(query)
 
+def primary_question_topics():
+    query = f"""
+        select member_name, ministry_addressed, count(*) as count_pri_questions
+        from `{project_id}.prod_mart.mart_speeches`
+        where
+            is_primary_question = true and ministry_addressed is not null and member_name != ''
+        group by all
+    """
+    return query_to_dataframe(query)
+
+def aggregate_by_ministry(df):
+    grouped_df = df.groupby('ministry_addressed')['count_pri_questions'].sum().reset_index()
+    total_questions = grouped_df['count_pri_questions'].sum()
+    grouped_df['proportion_of_questions'] = grouped_df['count_pri_questions'] / total_questions
+    return grouped_df
+
+def calculate_relative_proportion(selected_member, df, grouped_df):
+    member_questions = df[df["member_name"] == selected_member]
+    member_total_questions = member_questions["count_pri_questions"].sum()
+
+    grouped_df["relative_proportion_pri_questions"] = grouped_df["proportion_of_questions"] * member_total_questions
+    grouped_df = grouped_df[['ministry_addressed', 'relative_proportion_pri_questions']]
+    grouped_df['member_name'] = 'Relative Proportion'
+    grouped_df = grouped_df.rename(columns={'relative_proportion_pri_questions': 'count_pri_questions'})
+
+    final_df = pd.concat([member_questions, grouped_df], ignore_index=True)
+    final_df = final_df[['member_name', 'ministry_addressed', 'count_pri_questions']]
+
+    return final_df
 
 def get_member_speeches(member_name):
     all_members_speeches_summary = get_all_member_speeches()
@@ -187,7 +217,10 @@ def prepare_aggregated_data():
         how='left',
         on='year')
 
-    return members_df, member_positions_df, aggregated_by_member, aggregated_by_year
+    # primary questions
+    agg_questions_by_members = primary_question_topics()
+
+    return members_df, member_positions_df, aggregated_by_member, aggregated_by_year, agg_questions_by_members
 
 
 (
@@ -195,6 +228,7 @@ def prepare_aggregated_data():
     member_positions_df,
     aggregated_by_member,
     aggregated_by_year,
+    agg_questions_by_members
 ) = prepare_aggregated_data()
 member_names = sorted(members_df["member_name"].unique())
 
@@ -383,6 +417,48 @@ if select_member:
         st.caption(
             f"Average: {millify(aggregated_by_member['words_per_sitting'].mean(), precision=1)}"
         )
+
+    if not not_eligible_to_ask_questions:
+
+        agg_by_ministry_addressed = aggregate_by_ministry(agg_questions_by_members)
+        questions_summary_with_relative_proportion = calculate_relative_proportion(select_member,
+                                                                                   agg_questions_by_members,
+                                                                                   agg_by_ministry_addressed)
+
+        st.divider()
+        st.write("Parliamentary questions asked:")
+
+        chart = alt.Chart(questions_summary_with_relative_proportion).mark_bar().encode(
+                    x=alt.X('sum(count_pri_questions):Q', title='Count of Primary Questions'),
+                    y=alt.Y('member_name:N', sort='x', title='Ministry Addressed'),
+                    color='member_name:N',
+                    row='ministry_addressed:N',
+                    tooltip=['member_name', 'ministry_addressed', 'count_pri_questions']
+                ).properties(
+                    height=20,
+                )
+
+        horizontal_chart = chart.configure_view(
+            continuousHeight=100
+        ).configure_axis(
+            labelFontSize=0
+        ).configure_title(
+            fontSize=0
+        ).configure_legend(
+            titleFontSize=14,
+            labelFontSize=12
+        ).configure_axisY(
+            disable=True
+        ).configure_header(
+            labelAngle=0,
+            labelAnchor="start",
+            labelBaseline="middle"
+        ).configure_scale(
+            bandPaddingInner=0.001,
+            bandPaddingOuter=0.001  
+        )
+
+        st.altair_chart(horizontal_chart, use_container_width=True)
 
     st.divider()
     st.write("Over the years:")

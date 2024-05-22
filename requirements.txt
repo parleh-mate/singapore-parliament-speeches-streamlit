@@ -4,3 +4,4 @@ millify==0.1.1
 pandas==2.2.2
 scipy
 numpy
+altair
