@@ -1,6 +1,11 @@
 import streamlit as st
 import altair as alt
-from utils import project_id, run_query
+from agg_data import (
+    get_member_list,
+    get_member_positions,
+    get_all_member_speeches,
+    primary_question_topics,
+)
 import pandas as pd
 from datetime import datetime
 from scipy.stats import percentileofscore
@@ -20,116 +25,49 @@ def average_non_zero(x):
     non_zero_values = x[x != 0]
     return np.mean(non_zero_values) if len(non_zero_values) > 0 else 0
 
-def calculate_readability(row):
-    total_words = row['count_words']
-    total_sentences = row['count_sentences']
-    total_syllables = row['count_syllables']
 
-    readability = (206.835
-                   - (1.015 * total_words / total_sentences)
-                   - (84.6 * total_syllables / total_words))
+def calculate_readability(row):
+    total_words = row["count_words"]
+    total_sentences = row["count_sentences"]
+    total_syllables = row["count_syllables"]
+
+    readability = (
+        206.835
+        - (1.015 * total_words / total_sentences)
+        - (84.6 * total_syllables / total_words)
+    )
     return readability
 
 
-@st.cache_data(ttl=600)
-def query_to_dataframe(query):
-    return pd.DataFrame(run_query(query))
-
-
-def get_member_list():
-    query = f"""
-    select
-        member_name,
-        member_birth_year,
-        member_image_link,
-        party,
-        earliest_sitting,
-        latest_sitting,
-        count_sittings_present,
-        count_sittings_total
-    from `{project_id}.prod_dim.dim_members`
-    where member_name != '' and member_name is not null
-    """
-    return query_to_dataframe(query)
-
-
-def get_member_positions():
-    query = f"""
-    select * from `{project_id}.prod_fact.fact_member_positions`
-    """
-    return query_to_dataframe(query)
-
-
-def get_all_member_speeches():
-    query = f"""
-    with speeches_summary as (
-        select
-            member_name,
-            extract(year from date) as year,
-            count(distinct date) as count_sittings_spoken,
-            count(distinct topic_id) as count_topics,
-            count(*) as count_speeches,
-            sum(count_speeches_words) as count_words,
-            countif(is_primary_question) as count_pri_questions,
-            sum(count_speeches_sentences) as count_sentences,
-            sum(count_speeches_syllables) as count_syllables
-        from `{project_id}.prod_mart.mart_speeches`
-        where member_name != '' and not lower(member_name) like any ('%deputy%', '%speaker%', '%chairman%')
-        group by all
-    ),
-    attendance_summary as (
-        select
-            member_name,
-            extract(year from date) as year,
-            countif(is_present) as count_sittings_attended
-        from `{project_id}.prod_fact.fact_attendance`
-        group by all
-    )
-    select
-        s.member_name,
-        s.year,
-        a.count_sittings_attended,
-        s.count_sittings_spoken,
-        s.count_topics,
-        s.count_speeches,
-        s.count_words,
-        s.count_pri_questions,
-        s.count_syllables,
-        s.count_sentences
-    from speeches_summary as s
-    left join attendance_summary as a on s.member_name = a.member_name and s.year = a.year
-    """
-    return query_to_dataframe(query)
-
-def primary_question_topics():
-    query = f"""
-        select member_name, ministry_addressed, count(*) as count_pri_questions
-        from `{project_id}.prod_mart.mart_speeches`
-        where
-            is_primary_question = true and ministry_addressed is not null and member_name != ''
-        group by all
-    """
-    return query_to_dataframe(query)
-
 def aggregate_by_ministry(df):
-    grouped_df = df.groupby('ministry_addressed')['count_pri_questions'].sum().reset_index()
-    total_questions = grouped_df['count_pri_questions'].sum()
-    grouped_df['proportion_of_questions'] = grouped_df['count_pri_questions'] / total_questions
+    grouped_df = (
+        df.groupby("ministry_addressed")["count_pri_questions"].sum().reset_index()
+    )
+    total_questions = grouped_df["count_pri_questions"].sum()
+    grouped_df["proportion_of_questions"] = (
+        grouped_df["count_pri_questions"] / total_questions
+    )
     return grouped_df
+
 
 def calculate_relative_proportion(selected_member, df, grouped_df):
     member_questions = df[df["member_name"] == selected_member]
     member_total_questions = member_questions["count_pri_questions"].sum()
 
-    grouped_df["relative_proportion_pri_questions"] = grouped_df["proportion_of_questions"] * member_total_questions
-    grouped_df = grouped_df[['ministry_addressed', 'relative_proportion_pri_questions']]
-    grouped_df['member_name'] = 'Relative Proportion'
-    grouped_df = grouped_df.rename(columns={'relative_proportion_pri_questions': 'count_pri_questions'})
+    grouped_df["relative_proportion_pri_questions"] = (
+        grouped_df["proportion_of_questions"] * member_total_questions
+    )
+    grouped_df = grouped_df[["ministry_addressed", "relative_proportion_pri_questions"]]
+    grouped_df["member_name"] = "Relative Proportion"
+    grouped_df = grouped_df.rename(
+        columns={"relative_proportion_pri_questions": "count_pri_questions"}
+    )
 
     final_df = pd.concat([member_questions, grouped_df], ignore_index=True)
-    final_df = final_df[['member_name', 'ministry_addressed', 'count_pri_questions']]
+    final_df = final_df[["member_name", "ministry_addressed", "count_pri_questions"]]
 
     return final_df
+
 
 def get_member_speeches(member_name):
     all_members_speeches_summary = get_all_member_speeches()
@@ -138,7 +76,7 @@ def get_member_speeches(member_name):
     ]
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=6000)
 def prepare_aggregated_data():
     members_df = get_member_list()
     member_positions_df = get_member_positions()
@@ -152,7 +90,7 @@ def prepare_aggregated_data():
         "count_words",
         "count_pri_questions",
         "count_sentences",
-        "count_syllables"
+        "count_syllables",
     ]
 
     # agg by member
@@ -182,7 +120,9 @@ def prepare_aggregated_data():
         / aggregated_by_member["count_sittings_spoken"]
     )
 
-    aggregated_by_member["readability"] = aggregated_by_member.apply(calculate_readability, axis=1)
+    aggregated_by_member["readability"] = aggregated_by_member.apply(
+        calculate_readability, axis=1
+    )
 
     aggregated_by_member = aggregated_by_member[
         aggregated_by_member["count_sittings_attended"] != 0
@@ -197,30 +137,36 @@ def prepare_aggregated_data():
         aggregated_by_year["year"].astype(str).str.replace("[,.]", "", regex=True)
     )
     # agg by year (overall readability)
-    readability_cols = [
-        'count_words',
-        'count_sentences',
-        'count_syllables'
-    ]
+    readability_cols = ["count_words", "count_sentences", "count_syllables"]
     readability_dict = {col: sum for col in readability_cols}
     aggregated_by_year_readability = (
         all_members_speech_summary.groupby("year").agg(readability_dict).reset_index()
     )
     aggregated_by_year_readability.columns = ["year"] + readability_cols
-    aggregated_by_year_readability["overall_readability"] = aggregated_by_year_readability\
-        .apply(calculate_readability, axis=1)
+    aggregated_by_year_readability[
+        "overall_readability"
+    ] = aggregated_by_year_readability.apply(calculate_readability, axis=1)
     aggregated_by_year_readability["year"] = (
-        aggregated_by_year_readability["year"].astype(str).str.replace("[,.]", "", regex=True)
+        aggregated_by_year_readability["year"]
+        .astype(str)
+        .str.replace("[,.]", "", regex=True)
     )
     aggregated_by_year = aggregated_by_year.merge(
         aggregated_by_year_readability[["year", "overall_readability"]],
-        how='left',
-        on='year')
+        how="left",
+        on="year",
+    )
 
     # primary questions
     agg_questions_by_members = primary_question_topics()
 
-    return members_df, member_positions_df, aggregated_by_member, aggregated_by_year, agg_questions_by_members
+    return (
+        members_df,
+        member_positions_df,
+        aggregated_by_member,
+        aggregated_by_year,
+        agg_questions_by_members,
+    )
 
 
 (
@@ -228,7 +174,7 @@ def prepare_aggregated_data():
     member_positions_df,
     aggregated_by_member,
     aggregated_by_year,
-    agg_questions_by_members
+    agg_questions_by_members,
 ) = prepare_aggregated_data()
 member_names = sorted(members_df["member_name"].unique())
 
@@ -263,6 +209,7 @@ if select_member:
             st.markdown(
                 f"""
                 * Last Political Affiliation: {member_df['party'].iloc[0]}
+                * Latest Constituency: {member_df['constituency'].iloc[0]}{' (Inactive)' if member_df['is_active'].iloc[0] == False else ''}
                 * Birth Year: {member_birth_year_int} (_Age: {member_age_int}_)
                 """
             )
@@ -419,43 +366,39 @@ if select_member:
         )
 
     if not not_eligible_to_ask_questions:
-
         agg_by_ministry_addressed = aggregate_by_ministry(agg_questions_by_members)
-        questions_summary_with_relative_proportion = calculate_relative_proportion(select_member,
-                                                                                   agg_questions_by_members,
-                                                                                   agg_by_ministry_addressed)
+        questions_summary_with_relative_proportion = calculate_relative_proportion(
+            select_member, agg_questions_by_members, agg_by_ministry_addressed
+        )
 
         st.divider()
         st.write("Parliamentary questions asked:")
 
-        chart = alt.Chart(questions_summary_with_relative_proportion).mark_bar().encode(
-                    x=alt.X('sum(count_pri_questions):Q', title='Count of Primary Questions'),
-                    y=alt.Y('member_name:N', sort='x', title='Ministry Addressed'),
-                    color='member_name:N',
-                    row='ministry_addressed:N',
-                    tooltip=['member_name', 'ministry_addressed', 'count_pri_questions']
-                ).properties(
-                    height=20,
-                )
+        chart = (
+            alt.Chart(questions_summary_with_relative_proportion)
+            .mark_bar()
+            .encode(
+                x=alt.X(
+                    "sum(count_pri_questions):Q", title="Count of Primary Questions"
+                ),
+                y=alt.Y("member_name:N", sort="x", title="Ministry Addressed"),
+                color="member_name:N",
+                row="ministry_addressed:N",
+                tooltip=["member_name", "ministry_addressed", "count_pri_questions"],
+            )
+            .properties(
+                height=20,
+            )
+        )
 
-        horizontal_chart = chart.configure_view(
-            continuousHeight=100
-        ).configure_axis(
-            labelFontSize=0
-        ).configure_title(
-            fontSize=0
-        ).configure_legend(
-            titleFontSize=14,
-            labelFontSize=12
-        ).configure_axisY(
-            disable=True
-        ).configure_header(
-            labelAngle=0,
-            labelAnchor="start",
-            labelBaseline="middle"
-        ).configure_scale(
-            bandPaddingInner=0.001,
-            bandPaddingOuter=0.001  
+        horizontal_chart = (
+            chart.configure_view(continuousHeight=100)
+            .configure_axis(labelFontSize=0)
+            .configure_title(fontSize=0)
+            .configure_legend(titleFontSize=14, labelFontSize=12)
+            .configure_axisY(disable=True)
+            .configure_header(labelAngle=0, labelAnchor="start", labelBaseline="middle")
+            .configure_scale(bandPaddingInner=0.001, bandPaddingOuter=0.001)
         )
 
         st.altair_chart(horizontal_chart, use_container_width=True)
@@ -489,7 +432,12 @@ if select_member:
             y=["count_words", "avg_count_words"],
             height=200,
         )
-    st.line_chart(data=speech_summary, x="year", y=["readability", "overall_readability"], height=200)
+    st.line_chart(
+        data=speech_summary,
+        x="year",
+        y=["readability", "overall_readability"],
+        height=200,
+    )
 
     st.divider()
     st.subheader("Positions")

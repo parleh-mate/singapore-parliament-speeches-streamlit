@@ -19,3 +19,8 @@ def run_query(query):
     # Convert to list of dicts. Required for st.cache_data to hash the return value.
     rows = [dict(row) for row in rows_raw]
     return rows
+
+
+@st.cache_data(ttl=6000)
+def query_to_dataframe(query):
+    return pd.DataFrame(run_query(query))
