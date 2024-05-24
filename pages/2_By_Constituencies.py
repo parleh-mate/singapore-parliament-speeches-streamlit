@@ -1,5 +1,6 @@
 import streamlit as st
-from agg_data import get_member_list
+from agg_data import get_member_list, get_member_positions
+from members import parse_appointments, categorise_active_members_with_appointments
 
 # BACKEND
 
@@ -7,6 +8,11 @@ members_df = get_member_list()
 constituency_names = sorted(
     members_df[members_df["constituency"].notna()]["constituency"].unique()
 )
+all_member_positions = get_member_positions()
+current_member_appointments = all_member_positions[
+    (all_member_positions["type"] == "appointment")
+    & (all_member_positions["is_latest_position"])
+]
 
 # FRONTEND
 
@@ -46,8 +52,7 @@ if select_constituency:
                     member_image_link = members_df[
                         members_df["member_name"] == member_name
                     ]["member_image_link"].iloc[0]
-                    st.image(member_image_link)
-                    st.markdown(f"{member_name}")
+                    st.image(member_image_link, width=100, caption=member_name)
                 else:
                     st.empty()
 
@@ -58,11 +63,40 @@ if select_constituency:
     if len(active_members) > 5:
         display_members(active_members, start_index=5)
 
+    (
+        active_members_with_appointments,
+        active_member_appointments,
+        active_members_without_appointments,
+    ) = categorise_active_members_with_appointments(
+        active_members, current_member_appointments
+    )
+
+    appointment_holders_md = "### Appointment Holders:\n" + "\n".join(
+        [
+            f"{idx + 1}. **{member}**: {appointment}"
+            for idx, (member, appointment) in enumerate(
+                zip(active_members_with_appointments, active_member_appointments)
+            )
+        ]
+    )
+    st.markdown(appointment_holders_md)
+
+    backbenchers_md = "### Backbenchers:\n" + "\n".join(
+        [
+            f"{idx + 1}. **{member}**"
+            for idx, member in enumerate(active_members_without_appointments)
+        ]
+    )
+    st.markdown(backbenchers_md)
+
+    st.markdown("### All Active Members:")
+
     st.dataframe(
         members_df[
             (members_df["constituency"] == select_constituency)
             & (members_df["is_active"] == True)
-        ]
+        ],
+        hide_index=True,
     )
 
     st.subheader("Former Members")
@@ -71,5 +105,6 @@ if select_constituency:
         members_df[
             (members_df["constituency"] == select_constituency)
             & (members_df["is_active"] == False)
-        ]
+        ],
+        hide_index=True,
     )
