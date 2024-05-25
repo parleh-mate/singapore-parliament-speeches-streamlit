@@ -151,12 +151,7 @@ if select_constituency:
 
     if len(filter_former_members(select_constituency)) > 0:
         with st.expander("### Former Members"):
-            former_members = [
-                item
-                for idx, item in filter_former_members(select_constituency)[
-                    "member_name"
-                ].iteritems()
-            ]
+            former_members = filter_former_members(select_constituency)["member_name"]
             for member_name in former_members:
                 if member_name in aggregated_by_member_display["member_name"].values:
                     st.write(f"**{member_name}**")
