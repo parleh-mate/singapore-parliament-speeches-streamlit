@@ -24,3 +24,16 @@ def run_query(query):
 @st.cache_data(ttl=6000)
 def query_to_dataframe(query):
     return pd.DataFrame(run_query(query))
+
+
+def calculate_readability(row):
+    total_words = row["count_words"]
+    total_sentences = row["count_sentences"]
+    total_syllables = row["count_syllables"]
+
+    readability = (
+        206.835
+        - (1.015 * total_words / total_sentences)
+        - (84.6 * total_syllables / total_words)
+    )
+    return readability

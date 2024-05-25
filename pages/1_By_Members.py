@@ -6,6 +6,8 @@ from agg_data import (
     get_all_member_speeches,
     primary_question_topics,
 )
+from members import aggregate_member_metrics
+from utils import calculate_readability
 import pandas as pd
 from datetime import datetime
 from scipy.stats import percentileofscore
@@ -24,19 +26,6 @@ st.set_page_config(
 def average_non_zero(x):
     non_zero_values = x[x != 0]
     return np.mean(non_zero_values) if len(non_zero_values) > 0 else 0
-
-
-def calculate_readability(row):
-    total_words = row["count_words"]
-    total_sentences = row["count_sentences"]
-    total_syllables = row["count_syllables"]
-
-    readability = (
-        206.835
-        - (1.015 * total_words / total_sentences)
-        - (84.6 * total_syllables / total_words)
-    )
-    return readability
 
 
 def aggregate_by_ministry(df):
@@ -94,39 +83,10 @@ def prepare_aggregated_data():
     ]
 
     # agg by member
-    agg_by_member_dict = {col: "sum" for col in column_names}
-    aggregated_by_member = (
-        all_members_speech_summary.groupby("member_name")
-        .agg(agg_by_member_dict)
-        .reset_index()
-    )
-    aggregated_by_member.columns = ["member_name"] + column_names
-
-    aggregated_by_member["participation_rate"] = (
-        aggregated_by_member["count_sittings_spoken"]
-        / aggregated_by_member["count_sittings_attended"]
-        * 100
-    )
-    aggregated_by_member["topics_per_sitting"] = (
-        aggregated_by_member["count_topics"]
-        / aggregated_by_member["count_sittings_spoken"]
-    )
-    aggregated_by_member["questions_per_sitting"] = (
-        aggregated_by_member["count_pri_questions"]
-        / aggregated_by_member["count_sittings_spoken"]
-    )
-    aggregated_by_member["words_per_sitting"] = (
-        aggregated_by_member["count_words"]
-        / aggregated_by_member["count_sittings_spoken"]
+    aggregated_by_member = aggregate_member_metrics(
+        all_members_speech_summary, calculate_readability
     )
 
-    aggregated_by_member["readability"] = aggregated_by_member.apply(
-        calculate_readability, axis=1
-    )
-
-    aggregated_by_member = aggregated_by_member[
-        aggregated_by_member["count_sittings_attended"] != 0
-    ]
     # agg by year (average metrics)
     agg_by_year_dict = {col: average_non_zero for col in column_names}
     aggregated_by_year = (

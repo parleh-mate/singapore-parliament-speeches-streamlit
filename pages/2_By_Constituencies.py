@@ -1,6 +1,12 @@
 import streamlit as st
-from agg_data import get_member_list, get_member_positions
-from members import parse_appointments, categorise_active_members_with_appointments
+import pandas as pd
+from millify import millify
+from agg_data import get_member_list, get_member_positions, get_all_member_speeches
+from members import (
+    categorise_active_members_with_appointments,
+    aggregate_member_metrics,
+)
+from utils import calculate_readability
 
 # BACKEND
 
@@ -8,11 +14,50 @@ members_df = get_member_list()
 constituency_names = sorted(
     members_df[members_df["constituency"].notna()]["constituency"].unique()
 )
+
+# current appointments:
 all_member_positions = get_member_positions()
 current_member_appointments = all_member_positions[
     (all_member_positions["type"] == "appointment")
     & (all_member_positions["is_latest_position"])
 ]
+
+# metrics by member:
+all_members_speech_summary = get_all_member_speeches()
+aggregated_by_member = aggregate_member_metrics(
+    all_members_speech_summary, calculate_readability
+)
+metrics_to_display = [
+    "member_name",
+    "participation_rate",
+    "topics_per_sitting",
+    "questions_per_sitting",
+    "words_per_sitting",
+    "readability",
+]
+aggregated_by_member_display = aggregated_by_member[metrics_to_display]
+aggregated_by_member_display["participation_rate"] = (
+    aggregated_by_member["participation_rate"].round(1).astype(str) + "%"
+)
+for metric in metrics_to_display:
+    if metric not in [
+        "member_name",
+        "participation_rate",
+    ] and pd.api.types.is_numeric_dtype(aggregated_by_member_display[metric]):
+        aggregated_by_member_display[metric] = aggregated_by_member_display[
+            metric
+        ].round(2)
+
+
+# former members:
+def filter_former_members(select_constituency):
+    former_members = members_df[
+        (members_df["constituency"] == select_constituency)
+        & (members_df["is_active"] == False)
+    ]
+
+    return former_members
+
 
 # FRONTEND
 
@@ -71,40 +116,48 @@ if select_constituency:
         active_members, current_member_appointments
     )
 
-    appointment_holders_md = "### Appointment Holders:\n" + "\n".join(
-        [
-            f"{idx + 1}. **{member}**: {appointment}"
-            for idx, (member, appointment) in enumerate(
-                zip(active_members_with_appointments, active_member_appointments)
-            )
+    def display_metrics(member_name):
+        columns = st.columns(5, gap="medium")
+        metrics = [
+            ("participation_rate", "Participation (%)", "1"),
+            ("topics_per_sitting", "Topics/Sitting", "1"),
+            ("questions_per_sitting", "Qns/Sitting", "2"),
+            ("words_per_sitting", "Words/Sitting", "2"),
+            ("readability", "Readability", "1"),
         ]
-    )
-    st.markdown(appointment_holders_md)
+        for i, col in enumerate(columns):
+            with col:
+                value = aggregated_by_member_display[
+                    aggregated_by_member_display["member_name"] == member_name
+                ][metrics[i][0]].iloc[0]
+                if isinstance(value, (int, float)):
+                    value = millify(value, precision=metrics[i][2])
+                st.metric(
+                    label=metrics[i][1],
+                    value=value,
+                )
 
-    backbenchers_md = "### Backbenchers:\n" + "\n".join(
-        [
-            f"{idx + 1}. **{member}**"
-            for idx, member in enumerate(active_members_without_appointments)
-        ]
-    )
-    st.markdown(backbenchers_md)
+    if active_members_with_appointments:
+        with st.expander("### Appointment Holders"):
+            for idx, member_name in enumerate(active_members_with_appointments):
+                st.write(f"**{member_name}** ({active_member_appointments[idx]})")
+                display_metrics(member_name)
 
-    st.markdown("### All Active Members:")
+    if active_members_without_appointments:
+        with st.expander("### Backbenchers"):
+            for idx, member_name in enumerate(active_members_without_appointments):
+                st.write(f"**{member_name}**")
+                display_metrics(member_name)
 
-    st.dataframe(
-        members_df[
-            (members_df["constituency"] == select_constituency)
-            & (members_df["is_active"] == True)
-        ],
-        hide_index=True,
-    )
-
-    st.subheader("Former Members")
-
-    st.dataframe(
-        members_df[
-            (members_df["constituency"] == select_constituency)
-            & (members_df["is_active"] == False)
-        ],
-        hide_index=True,
-    )
+    if len(filter_former_members(select_constituency)) > 0:
+        with st.expander("### Former Members"):
+            former_members = [
+                item
+                for idx, item in filter_former_members(select_constituency)[
+                    "member_name"
+                ].iteritems()
+            ]
+            for member_name in former_members:
+                if member_name in aggregated_by_member_display["member_name"].values:
+                    st.write(f"**{member_name}**")
+                    display_metrics(member_name)
