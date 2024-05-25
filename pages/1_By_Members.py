@@ -7,7 +7,7 @@ from agg_data import (
     primary_question_topics,
 )
 from members import aggregate_member_metrics
-from utils import calculate_readability
+from utils import calculate_readability, EARLIEST_SITTING
 import pandas as pd
 from datetime import datetime
 from scipy.stats import percentileofscore
@@ -138,7 +138,6 @@ def prepare_aggregated_data():
 ) = prepare_aggregated_data()
 member_names = sorted(members_df["member_name"].unique())
 
-EARLIEST_SITTING = "2012-09-10"
 
 # FRONTEND
 

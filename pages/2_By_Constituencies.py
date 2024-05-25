@@ -6,7 +6,7 @@ from members import (
     categorise_active_members_with_appointments,
     aggregate_member_metrics,
 )
-from utils import calculate_readability
+from utils import calculate_readability, EARLIEST_SITTING
 
 # BACKEND
 
@@ -139,6 +139,9 @@ if select_constituency:
 
     if active_members_with_appointments:
         with st.expander("### Appointment Holders"):
+            st.success(
+                f"As these member(s) have a political appointment (e.g. Minister, Parliamentary Secretary, Minister of State), they will not ask questions during parliamentary proceedings. Instead, they answer questions. If there are values for questions asked, this could either be before the member became a political appointee or a bug."
+            )
             for idx, member_name in enumerate(active_members_with_appointments):
                 st.write(f"**{member_name}** ({active_member_appointments[idx]})")
                 display_metrics(member_name)
@@ -151,8 +154,20 @@ if select_constituency:
 
     if len(filter_former_members(select_constituency)) > 0:
         with st.expander("### Former Members"):
+            st.warning(
+                f"The information below reflects information from sittings on {EARLIEST_SITTING} and after."
+            )
             former_members = filter_former_members(select_constituency)["member_name"]
             for member_name in former_members:
                 if member_name in aggregated_by_member_display["member_name"].values:
-                    st.write(f"**{member_name}**")
+                    position_dates = all_member_positions[
+                        (all_member_positions["member_name"] == member_name)
+                        & (
+                            all_member_positions["member_position"]
+                            == select_constituency
+                        )
+                    ][["effective_from_date", "effective_to_date"]]
+                    earliest_date = position_dates["effective_from_date"].min()
+                    latest_date = position_dates["effective_to_date"].max()
+                    st.write(f"**{member_name}** ({earliest_date} to {latest_date})")
                     display_metrics(member_name)
