@@ -1,5 +1,6 @@
 import streamlit as st
 
+st.set_page_config(page_title="7_Spot_an_Issue?")
 st.title("Report Issues")
 
 st.markdown(
