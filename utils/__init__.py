@@ -42,3 +42,30 @@ def calculate_readability(row):
         - (84.6 * total_syllables / total_words)
     )
     return readability
+
+def process_percentage_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Processes DataFrame columns that contain the '%' symbol in their names.
+    For these columns, rounds the values to 1 decimal place and adds a '%' suffix.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame to process.
+
+    Returns:
+    - pd.DataFrame: The processed DataFrame with percentage columns formatted.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("Input is not a DataFrame")
+
+    def format_percentage(value):
+        if pd.isna(value):
+            return value
+        return f"{value:.1f}%"
+
+    # Identify columns with '%' in their names
+    percentage_columns = [col for col in df.columns if '%' in col]
+
+    for col in percentage_columns:
+        df[col] = df[col].apply(lambda x: format_percentage(x))
+
+    return df
