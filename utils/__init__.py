@@ -5,6 +5,22 @@ import pandas as pd
 
 EARLIEST_SITTING = "2012-09-10"
 
+PARTY_COLOURS = {
+    "PAP": "#FF9999",  # pastel red
+    "PSP": "#FFFF99",  # pastel yellow
+    "WP": "#99CCFF",  # pastel blue
+    "NMP": "#D3D3D3",  # pastel grey
+    "SPP": "#D8BFD8",  # pastel purple
+}
+
+PARTY_SHAPES = {
+    "PAP": "circle",
+    "PSP": "square",
+    "WP": "triangle",
+    "NMP": "diamond",
+    "SPP": "cross",
+}
+
 # Create API client.
 
 credentials = service_account.Credentials.from_service_account_info(
@@ -34,7 +50,7 @@ def calculate_readability(row):
     total_syllables = row["count_syllables"]
 
     if total_sentences == 0 or total_words == 0:
-        return float('nan')
+        return float("nan")
 
     readability = (
         206.835
@@ -43,10 +59,14 @@ def calculate_readability(row):
     )
     return readability
 
-def process_percentage_columns(df: pd.DataFrame) -> pd.DataFrame:
+
+def process_metric_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Processes DataFrame columns that contain the '%' symbol in their names.
     For these columns, rounds the values to 1 decimal place and adds a '%' suffix.
+
+    Processes DataFrame columns that contain the '#' symbol in their names.
+    For these columns, rounds the values to 0 decimal places.
 
     Parameters:
     - df (pd.DataFrame): The DataFrame to process.
@@ -62,10 +82,19 @@ def process_percentage_columns(df: pd.DataFrame) -> pd.DataFrame:
             return value
         return f"{value:.1f}%"
 
+    def format_count(value):
+        if pd.isna(value):
+            return value
+        return round(value)
+
     # Identify columns with '%' in their names
-    percentage_columns = [col for col in df.columns if '%' in col]
+    percentage_columns = [col for col in df.columns if "%" in col]
+    count_columns = [col for col in df.columns if "#" in col]
 
     for col in percentage_columns:
         df[col] = df[col].apply(lambda x: format_percentage(x))
+
+    for col in count_columns:
+        df[col] = df[col].apply(lambda x: format_count(x))
 
     return df
