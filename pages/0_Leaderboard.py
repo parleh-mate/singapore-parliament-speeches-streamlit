@@ -35,7 +35,7 @@ constituency_names = sorted(
     ]["member_constituency"].unique()
 )
 
-# FRONTEND
+# SELECTIONS
 
 parliaments = {"13th Parliament": [13], "14th Parliament": [14], "All": [12, 13, 14]}
 
@@ -85,7 +85,9 @@ elif select_by == "Member":
     # where the selection is members and not GRCs
     selected_members = [select_member if select_member else ""]
 
-st.title("Members Leaderboard")
+# FRONTEND
+
+st.title("Leaderboard")
 st.warning("Under construction.")
 
 
