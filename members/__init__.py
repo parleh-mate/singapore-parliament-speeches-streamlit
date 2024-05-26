@@ -66,17 +66,20 @@ def categorise_active_members_with_appointments(
 
 
 def aggregate_member_metrics(
-    all_members_speech_summary: pd.DataFrame, calculate_readability: Callable
+    all_members_speech_summary: pd.DataFrame,
+    calculate_readability: Callable,
+    group_by_fields: List[str]
 ) -> pd.DataFrame:
     """
-    Aggregates speech summary data by member and calculates additional metrics.
+    Aggregates speech summary data by specified group-by fields and calculates additional metrics.
 
     Parameters:
     - all_members_speech_summary (pd.DataFrame): DataFrame containing the speech summary data for all members.
-    - calculate_readability (Callable): Function to calculate readability for each member's data.
+    - calculate_readability (Callable): Function to calculate readability for each group of data.
+    - group_by_fields (List[str]): List of fields to group by.
 
     Returns:
-    - pd.DataFrame: DataFrame with aggregated data and calculated metrics for each member.
+    - pd.DataFrame: DataFrame with aggregated data and calculated metrics for each group.
     """
     column_names = [
         "count_sittings_attended",
@@ -89,42 +92,41 @@ def aggregate_member_metrics(
         "count_syllables",
     ]
 
-    # Aggregate by member
-    agg_by_member_dict = {col: "sum" for col in column_names}
-    aggregated_by_member = (
-        all_members_speech_summary.groupby("member_name")
-        .agg(agg_by_member_dict)
+    # Aggregate by specified fields
+    agg_by_fields_dict = {col: "sum" for col in column_names}
+    aggregated = (
+        all_members_speech_summary.groupby(group_by_fields)
+        .agg(agg_by_fields_dict)
         .reset_index()
     )
-    aggregated_by_member.columns = ["member_name"] + column_names
 
     # Calculate additional metrics
-    aggregated_by_member["participation_rate"] = (
-        aggregated_by_member["count_sittings_spoken"]
-        / aggregated_by_member["count_sittings_attended"]
+    aggregated["participation_rate"] = (
+        aggregated["count_sittings_spoken"]
+        / aggregated["count_sittings_attended"]
         * 100
     )
-    aggregated_by_member["topics_per_sitting"] = (
-        aggregated_by_member["count_topics"]
-        / aggregated_by_member["count_sittings_spoken"]
+    aggregated["topics_per_sitting"] = (
+        aggregated["count_topics"]
+        / aggregated["count_sittings_spoken"]
     )
-    aggregated_by_member["questions_per_sitting"] = (
-        aggregated_by_member["count_pri_questions"]
-        / aggregated_by_member["count_sittings_spoken"]
+    aggregated["questions_per_sitting"] = (
+        aggregated["count_pri_questions"]
+        / aggregated["count_sittings_spoken"]
     )
-    aggregated_by_member["words_per_sitting"] = (
-        aggregated_by_member["count_words"]
-        / aggregated_by_member["count_sittings_spoken"]
+    aggregated["words_per_sitting"] = (
+        aggregated["count_words"]
+        / aggregated["count_sittings_spoken"]
     )
 
     # Apply readability calculation
-    aggregated_by_member["readability"] = aggregated_by_member.apply(
+    aggregated["readability"] = aggregated.apply(
         calculate_readability, axis=1
     )
 
     # Filter out rows where count_sittings_attended is zero
-    aggregated_by_member = aggregated_by_member[
-        aggregated_by_member["count_sittings_attended"] != 0
+    aggregated = aggregated[
+        aggregated["count_sittings_attended"] != 0
     ]
 
-    return aggregated_by_member
+    return aggregated

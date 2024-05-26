@@ -25,7 +25,7 @@ current_member_appointments = all_member_positions[
 # metrics by member:
 all_members_speech_summary = get_all_member_speeches()
 aggregated_by_member = aggregate_member_metrics(
-    all_members_speech_summary, calculate_readability
+    all_members_speech_summary, calculate_readability, group_by_fields=["member_name"]
 )
 metrics_to_display = [
     "member_name",
