@@ -88,7 +88,6 @@ elif select_by == "Member":
 # FRONTEND
 
 st.title("Leaderboard")
-st.warning("Under construction.")
 
 
 tabs = [
