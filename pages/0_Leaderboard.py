@@ -35,6 +35,26 @@ constituency_names = sorted(
     ]["member_constituency"].unique()
 )
 
+aggregated_by_member_parliament_year_month = aggregate_member_metrics(
+    all_members_speech_summary,
+    calculate_readability,
+    group_by_fields=[
+        "member_name",
+        "member_party",
+        "member_constituency",
+        "parliament",
+        "year",
+        "month"
+    ],
+)
+
+aggregated_by_member_parliament_year_month["year_month"] = (
+    aggregated_by_member_parliament_year_month["year"].astype(str) + "-" +
+    aggregated_by_member_parliament_year_month["month"].astype(str).str.zfill(2)
+)
+aggregated_by_member_parliament_year_month.drop(["year", "month"], axis=1, inplace=True)
+
+
 # SELECTIONS
 
 parliaments = {"13th Parliament": [13], "14th Parliament": [14], "All": [12, 13, 14]}
@@ -230,6 +250,27 @@ with contributions:
     st.warning("Under construction.")
 
 with readability:
+    # PROCESSING
+
+    readability_cols = {
+        "member_name": "Member Name",
+        "year_month": "Year Month",
+        "count_words": "# Words",
+        "count_sentences": "# Sentences",
+        "count_syllables": "# Syllables",
+        "readability": "Readability",
+        "member_party": "Party",
+        "member_constituency": "Constituency",
+    }
+
+    processing = aggregated_by_member_parliament_year_month[
+        (aggregated_by_member_parliament_year_month["member_name"].isin(selected_members)) &
+        (aggregated_by_member_parliament_year_month["parliament"].isin(parliaments[select_parliament]))
+    ]
+    processing = processing[readability_cols.keys()]
+    to_display = processing.copy()
+
+    # FRONTEND
     st.header(tabs[3])
     display_header(select_by)
     st.warning("Under construction.")
@@ -244,3 +285,13 @@ with readability:
             Read more: [_Flesch, Rudolph. "A new readability yardstick." Journal of applied psychology 32.3 (1948): 221._](https://psycnet.apa.org/journals/apl/32/3/221/)
 
         """)
+
+    st.line_chart(
+        data=processing,
+        x="year_month",
+        y="readability",
+        color="member_name"
+    )
+
+
+    st.dataframe(to_display)
