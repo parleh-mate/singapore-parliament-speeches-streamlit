@@ -234,3 +234,14 @@ with readability:
     st.header(tabs[3])
     display_header(select_by)
     st.warning("Under construction.")
+    with st.expander("What is readability?", expanded=True):
+        st.markdown("""
+            Readability, as measured by the Flesch Reading Ease Score (FRES), quantifies the ease with which a text can be understood by calculating it using the formula:\n
+            $FRES =
+                    206.835
+                    - (1.015 \\times \\frac{\# Words}{\# Sentences})
+                    - (84.6 \\times \\frac{\# Syllables}{\# Words}) $\n
+            In this context, when the readability score is displayed, it is calculated against the overall measure (i.e. for the aggregation group).\n
+            Read more: [_Flesch, Rudolph. "A new readability yardstick." Journal of applied psychology 32.3 (1948): 221._](https://psycnet.apa.org/journals/apl/32/3/221/)
+
+        """)
