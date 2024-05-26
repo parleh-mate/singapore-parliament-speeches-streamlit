@@ -1,0 +1,19 @@
+name: Delete Merged Branches
+
+on:
+  push:
+    branches:
+      - main  # or your default branch
+
+jobs:
+  delete-branches:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Delete merged branches
+        run: |
+          git fetch --prune
+          git branch --merged | grep -v "\*" | xargs -n 1 git branch -d
