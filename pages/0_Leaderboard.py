@@ -44,13 +44,14 @@ aggregated_by_member_parliament_year_month = aggregate_member_metrics(
         "member_constituency",
         "parliament",
         "year",
-        "month"
+        "month",
     ],
 )
 
 aggregated_by_member_parliament_year_month["year_month"] = (
-    aggregated_by_member_parliament_year_month["year"].astype(str) + "-" +
-    aggregated_by_member_parliament_year_month["month"].astype(str).str.zfill(2)
+    aggregated_by_member_parliament_year_month["year"].astype(str)
+    + "-"
+    + aggregated_by_member_parliament_year_month["month"].astype(str).str.zfill(2)
 )
 aggregated_by_member_parliament_year_month.drop(["year", "month"], axis=1, inplace=True)
 
@@ -264,8 +265,16 @@ with readability:
     }
 
     processing = aggregated_by_member_parliament_year_month[
-        (aggregated_by_member_parliament_year_month["member_name"].isin(selected_members)) &
-        (aggregated_by_member_parliament_year_month["parliament"].isin(parliaments[select_parliament]))
+        (
+            aggregated_by_member_parliament_year_month["member_name"].isin(
+                selected_members
+            )
+        )
+        & (
+            aggregated_by_member_parliament_year_month["parliament"].isin(
+                parliaments[select_parliament]
+            )
+        )
     ]
     processing = processing[readability_cols.keys()]
     to_display = processing.copy()
@@ -275,7 +284,8 @@ with readability:
     display_header(select_by)
     st.warning("Under construction.")
     with st.expander("What is readability?", expanded=True):
-        st.markdown("""
+        st.markdown(
+            """
             Readability, as measured by the Flesch Reading Ease Score (FRES), quantifies the ease with which a text can be understood by calculating it using the formula:\n
             $FRES =
                     206.835
@@ -284,14 +294,9 @@ with readability:
             In this context, when the readability score is displayed, it is calculated against the overall measure (i.e. for the aggregation group).\n
             Read more: [_Flesch, Rudolph. "A new readability yardstick." Journal of applied psychology 32.3 (1948): 221._](https://psycnet.apa.org/journals/apl/32/3/221/)
 
-        """)
+        """
+        )
 
-    st.line_chart(
-        data=processing,
-        x="year_month",
-        y="readability",
-        color="member_name"
-    )
-
+    st.line_chart(data=processing, x="year_month", y="readability", color="member_name")
 
     st.dataframe(to_display)
