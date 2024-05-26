@@ -33,6 +33,9 @@ def calculate_readability(row):
     total_sentences = row["count_sentences"]
     total_syllables = row["count_syllables"]
 
+    if total_sentences == 0 or total_words == 0:
+        return float('nan')
+
     readability = (
         206.835
         - (1.015 * total_words / total_sentences)

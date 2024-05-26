@@ -58,10 +58,15 @@ def calculate_relative_proportion(selected_member, df, grouped_df):
     return final_df
 
 
-def get_member_speeches(member_name):
+def get_member_speeches_by_year(member_name):
     all_members_speeches_summary = get_all_member_speeches()
-    return all_members_speeches_summary[
-        all_members_speeches_summary["member_name"] == member_name
+
+    all_members_speeches_summary_by_year = aggregate_member_metrics(
+        all_members_speeches_summary, calculate_readability, group_by_fields=["member_name", "year"]
+    )
+
+    return all_members_speeches_summary_by_year[
+        all_members_speeches_summary_by_year["member_name"] == member_name
     ]
 
 
@@ -84,7 +89,7 @@ def prepare_aggregated_data():
 
     # agg by member
     aggregated_by_member = aggregate_member_metrics(
-        all_members_speech_summary, calculate_readability
+        all_members_speech_summary, calculate_readability, group_by_fields=["member_name"]
     )
 
     # agg by year (average metrics)
@@ -209,7 +214,7 @@ if select_member:
     st.divider()
     st.subheader("Speeches")
 
-    speech_summary = get_member_speeches(select_member)
+    speech_summary = get_member_speeches_by_year(select_member)
     speech_summary["readability"] = speech_summary.apply(calculate_readability, axis=1)
     speech_summary["year"] = (
         speech_summary["year"].astype(str).str.replace("[,.]", "", regex=True)
