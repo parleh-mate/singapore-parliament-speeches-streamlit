@@ -82,6 +82,7 @@ def aggregate_member_metrics(
     - pd.DataFrame: DataFrame with aggregated data and calculated metrics for each group.
     """
     column_names = [
+        "count_sittings_total",
         "count_sittings_attended",
         "count_sittings_spoken",
         "count_topics",
@@ -101,6 +102,12 @@ def aggregate_member_metrics(
     )
 
     # Calculate additional metrics
+    aggregated["attendance"] = (
+        aggregated["count_sittings_attended"]
+        / aggregated["count_sittings_total"]
+        * 100
+    )
+
     aggregated["participation_rate"] = (
         aggregated["count_sittings_spoken"]
         / aggregated["count_sittings_attended"]
