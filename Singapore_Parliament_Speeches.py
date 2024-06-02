@@ -62,17 +62,7 @@ st.title("Singapore Parliament Speeches")
 st.markdown(
     "This webapp is built to help Singaporeans understand the legislative outputs of their elected representatives."
 )
-st.warning(
-    """
-           Please note that this is an entirely independent effort, and this initiative is by no means affiliated with the Singapore Parliament nor Singapore Government.
-
-           While best efforts are made to ensure the information is accurate, there may be inevitable parsing errors. Please use the information here with caution and check the underlying data.
-           """
-)
 st.subheader("Dataset overview")
-st.info(
-    "Parliament typically takes 2 weeks to put the hansard (record) for sittings out. When new information is available, it will be displayed here."
-)
 st.write(
     f"The earliest sitting in this dataset is _**{earliest_date}**_, and the latest sitting available in this dataset is _**{latest_date}**_. There is information from _**{min_max_sittings['count_sittings']}**_ sittings in this dataset."
 )
@@ -89,13 +79,17 @@ with col3:
         "# Primary Questions",
         millify(count_speeches["count_primary_questions"], precision=1),
     )
-st.divider()
-st.markdown(
+st.image(
+    image="images/Parliament_house_Singapore_edge.png",
+    caption="ProjectManhattan., CC BY-SA 3.0, via Wikimedia Commons"
+)
+st.info(
+    "Parliament typically takes 2 weeks to put the hansard (record) for sittings out. When new information is available, it will be displayed here."
+)
+st.warning(
     """
-            Want to learn more? See source code:
-            * Data pipeline: [singapore-parliament-speeches](https://github.com/jeremychia/singapore-parliament-speeches) (Github).
-            * Data modelling with dbt: [singapore-parliament-speeches-dbt](https://github.com/jeremychia/singapore-parliament-speeches-dbt) (Github).
-            * Streamlit app (_this_): [singapore-parliament-speeches-streamlit](https://github.com/jeremychia/singapore-parliament-speeches-streamlit) (Github).
-            * Data visualisation: [Looker Studio Dashboard](https://lookerstudio.google.com/u/1/reporting/e41e239f-a88a-45b9-b133-5c91bb1f3f13/page/p_jniba4ngfd).
-            """
+           Please note that this is an entirely independent effort, and this initiative is by no means affiliated with the Singapore Parliament nor Singapore Government.
+
+           While best efforts are made to ensure the information is accurate, there may be inevitable parsing errors. Please use the information here with caution and check the underlying data.
+           """
 )
