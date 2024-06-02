@@ -1,5 +1,5 @@
 import streamlit as st
 
-st.title("Performance by Party")
+st.title("Parliamentary Questions")
 
 st.warning("Under construction.")
