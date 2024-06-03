@@ -174,7 +174,7 @@ explain_attendance_md = """
 Attendance (%) is measured by the number of sessions the member **attended** (or was present in) out of the total number of sessions which occured while they were sitting as member.
 """
 explain_participation_md = f"""
-Participation (%) is measured by the number of sessions the member **spoke in** as a percentage of the number of sessions the member **attended**.
+Participation (%) is measured by the number of sessions the member **spoke in** as a percentage of the number of sessions the member **attended**. Number of sessions spoken in are determined by looking at the parliamentary hansard for the day and counting dates where the member name appears in the record for topics which are not pertaining to written answers.
 
 In the {select_parliament if select_parliament != 'All' else 'dataset'}, the member with the highest participation was {to_display.loc[0,'Member Name']} (*{to_display.loc[0,'Participation (%)']}*). They spoke in *{to_display.loc[0,'# Spoken']}* sessions, out of the *{to_display.loc[0,'# Attended']}* sessions they attended.
 """
