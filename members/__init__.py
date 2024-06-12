@@ -125,6 +125,10 @@ def aggregate_member_metrics(
         aggregated["count_words"]
         / aggregated["count_sittings_spoken"]
     )
+    aggregated["speeches_per_sitting"] = (
+        aggregated["count_speeches"]
+        / aggregated["count_sittings_spoken"]
+    )
 
     # Apply readability calculation
     aggregated["readability"] = aggregated.apply(
