@@ -43,7 +43,6 @@ def run_query(query):
 def query_to_dataframe(query):
     return pd.DataFrame(run_query(query))
 
-
 def calculate_readability(row):
     total_words = row["count_words"]
     total_sentences = row["count_sentences"]
