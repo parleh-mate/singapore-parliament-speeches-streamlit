@@ -60,3 +60,11 @@ def primary_question_topics():
         group by all
     """
     return query_to_dataframe(query)
+
+def get_speech_sum():
+    query = f"""
+        select *
+        from `{project_id}.test.sum`
+    """
+    return query_to_dataframe(query)
+
