@@ -2,6 +2,7 @@ import streamlit as st
 from google.oauth2 import service_account
 from google.cloud import bigquery
 import pandas as pd
+import re
 
 EARLIEST_SITTING = "2012-09-10"
 
@@ -97,3 +98,18 @@ def process_metric_columns(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].apply(lambda x: format_count(x))
 
     return df
+
+def tidy_sum_df(df):
+    df = df[['date', 'parliament', 'member_name', 
+             'member_party', 'member_constituency', 'speech_summary']]
+
+    df = df.rename(columns = {"member_name": "name",
+                              "member_party": "party",
+                              "member_constituency": "constituency"})
+    
+    df['date'] = df['date'].apply(lambda x: re.search("\d{4}-\d{2}-\d{2}", x).group())
+
+    return df
+
+def filter_speech_fun(df, var, isin):
+    return df[df[var].isin(isin)]
